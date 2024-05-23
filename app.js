@@ -1,3 +1,4 @@
+//import necessary modules
 const express = require('express');
 const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
@@ -23,13 +24,13 @@ const upload = multer({ dest: 'uploads/' });
 
 
 const authenticateUser = (req, res, next) => {
-    // Check if Authorization header is present
+    // Check if Authorization  is there
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       return res.status(401).json({ error: 'Authorization header missing' });
     }
   
-    // Verify JWT token
+    // Verifying JWT token
     const token = authHeader.split(' ')[1];
     jwt.verify(token, JWT_SECRET, (err, user) => {
       if (err) {
@@ -40,7 +41,7 @@ const authenticateUser = (req, res, next) => {
     });
   };
   
-  // Routes
+  // register new user using details
   app.post('/register', async (req, res) => {
     try {
       const { name, phoneNumber, email, password } = req.body;
