@@ -1,3 +1,4 @@
+//connect to sqlitedb using knex 
 const knex = require('knex')({
     client: 'sqlite3',
     connection: {
@@ -6,6 +7,7 @@ const knex = require('knex')({
     useNullAsDefault: true
   });
 
+  //create table users
   knex.schema.hasTable('users').then(exists => {
     if (!exists) {
       return knex.schema.createTable('users', table => {
@@ -14,8 +16,8 @@ const knex = require('knex')({
         table.string('phoneNumber').unique().notNullable();
         table.string('email');
         table.string('password').notNullable();
-        table.boolean('isAdmin').defaultTo(false); // Adding isAdmin field for admin privilege
-        table.boolean('isPublic').defaultTo(true); // Adding isPublic field for profile privacy
+        table.boolean('isAdmin').defaultTo(false); //  isAdmin field for admin privilege
+        table.boolean('isPublic').defaultTo(true); //  isPublic field for profile privacy
       });
     }
   });

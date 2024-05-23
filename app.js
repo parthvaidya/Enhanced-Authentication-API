@@ -2,114 +2,23 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const jwt = require('jsonwebtoken');
 const database = require('./database');
-const passport = require('passport');
 const bcrypt = require('bcrypt');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const FacebookStrategy = require('passport-facebook').Strategy;
-const GitHubStrategy = require('passport-github').Strategy;
-const TwitterStrategy = require('passport-twitter').Strategy;
+// const { ClerkExpressWithAuth , redirectToSignIn, handleOAuthCallback } = require('@clerk/clerk-sdk-node');
+
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const JWT_SECRET = 'custom_secret_key';
-const GOOGLE_CLIENT_ID = 'your_google_client_id'; // Replace with your Google client ID
-const GOOGLE_CLIENT_SECRET = 'your_google_client_secret'; // Replace with your Google client secret
-const FACEBOOK_APP_ID = 'your_facebook_app_id'; // Replace with your Facebook app ID
-const FACEBOOK_APP_SECRET = 'your_facebook_app_secret'; // Replace with your Facebook app secret
-const GITHUB_CLIENT_ID = 'your_github_client_id'; // Replace with your GitHub client ID
-const GITHUB_CLIENT_SECRET = 'your_github_client_secret'; // Replace with your GitHub client secret
-const TWITTER_CONSUMER_KEY = 'your_twitter_consumer_key'; // Replace with your Twitter consumer key
-const TWITTER_CONSUMER_SECRET = 'your_twitter_consumer_secret';
+
 app.use(bodyParser.json());
+// app.use(ClerkExpressWithAuth ({
+//   apiKey: process.env.CLERK_PUBLISHABLE_KEY,
+//   apiSecretKey: process.env.CLERK_SECRET_KEY,
 
-passport.serializeUser((user, done) => {
-    done(null, user);
-  });
-  
-  passport.deserializeUser((user, done) => {
-    done(null, user);
-  });
-
-  // Google OAuth 2.0 strategy
-passport.use(new GoogleStrategy({
-    clientID: GOOGLE_CLIENT_ID,
-    clientSecret: GOOGLE_CLIENT_SECRET,
-    callbackURL: '/auth/google/callback'
-  },
-  async (accessToken, refreshToken, profile, done) => {
-    try {
-      // Check if user exists in the database
-      let user = await database('users').where({ email: profile.emails[0].value }).first();
-      if (!user) {
-        // If user doesn't exist, create a new user record
-        user = await database('users').insert({ name: profile.displayName, email: profile.emails[0].value });
-      }
-      return done(null, user);
-    } catch (error) {
-      return done(error);
-    }
-  }));
-  
-  // Facebook OAuth 2.0 strategy
-  passport.use(new FacebookStrategy({
-    clientID: FACEBOOK_APP_ID,
-    clientSecret: FACEBOOK_APP_SECRET,
-    callbackURL: '/auth/facebook/callback',
-    profileFields: ['id', 'emails', 'displayName']
-  },
-  async (accessToken, refreshToken, profile, done) => {
-    try {
-      // Check if user exists in the database
-      let user = await database('users').where({ email: profile.emails[0].value }).first();
-      if (!user) {
-        // If user doesn't exist, create a new user record
-        user = await database('users').insert({ name: profile.displayName, email: profile.emails[0].value });
-      }
-      return done(null, user);
-    } catch (error) {
-      return done(error);
-    }
-  }));
-  
-  // GitHub OAuth 2.0 strategy
-  passport.use(new GitHubStrategy({
-    clientID: GITHUB_CLIENT_ID,
-    clientSecret: GITHUB_CLIENT_SECRET,
-    callbackURL: '/auth/github/callback'
-  },
-  async (accessToken, refreshToken, profile, done) => {
-    try {
-      // Check if user exists in the database
-      let user = await database('users').where({ email: profile.emails[0].value }).first();
-      if (!user) {
-        // If user doesn't exist, create a new user record
-        user = await database('users').insert({ name: profile.displayName, email: profile.emails[0].value });
-      }
-      return done(null, user);
-    } catch (error) {
-      return done(error);
-    }
-  }));
-  
-  // Twitter OAuth 1.0 strategy
-  passport.use(new TwitterStrategy({
-    consumerKey: TWITTER_CONSUMER_KEY,
-    consumerSecret: TWITTER_CONSUMER_SECRET,
-    callbackURL: '/auth/twitter/callback'
-  },
-  async (token, tokenSecret, profile, done) => {
-    try {
-      // Check if user exists in the database
-      let user = await database('users').where({ email: profile.emails[0].value }).first();
-      if (!user) {
-        // If user doesn't exist, create a new user record
-        user = await database('users').insert({ name: profile.displayName, email: profile.emails[0].value });
-      }
-      return done(null, user);
-    } catch (error) {
-      return done(error);
-    }
-  }));
-  
+// }));
+const upload = multer({ dest: 'uploads/' });
  
 
 
@@ -147,114 +56,72 @@ const authenticateUser = (req, res, next) => {
   
   app.post('/login', async (req, res) => {
     try {
-      const { email, password } = req.body;
-      const user = await database('users').where({ email }).first();
-      if (!user) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-      const isPasswordValid = await bcrypt.compare(password, user.password);
-      if (!isPasswordValid) {
-        return res.status(401).json({ error: 'Invalid email or password' });
-      }
-      const token = jwt.sign({ id: user.id, isAdmin: user.isAdmin }, JWT_SECRET);
-      res.json({ message: 'Login successful' });
-      
+        const { email, password } = req.body;
+        const user = await database('users').where({ email }).first();
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        }
+        const token = jwt.sign({ id: user.id, isAdmin: user.isAdmin }, JWT_SECRET);
+        res.json({ message: 'Login successful', token: token }); 
     } catch (error) {
-      res.status(500).json({ error: 'Failed to login' });
+        res.status(500).json({ error: 'Failed to login' });
     }
-  });
+});
 
-
-  // Route for user login using Google OAuth 2.0
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
-
-app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login' }),
-  (req, res) => {
-    const user = req.user;
-    const token = jwt.sign({ id: user.id, isAdmin: user.isAdmin }, JWT_SECRET);
-    res.json({ token });
-  });
-
-// Route for user login using Facebook OAuth 2.0
-app.get('/auth/facebook', passport.authenticate('facebook', { scope: ['email'] }));
-
-app.get('/auth/facebook/callback',
-  passport.authenticate('facebook', { failureRedirect: '/login' }),
-  (req, res) => {
-    const user = req.user;
-    const token = jwt.sign({ id: user.id, isAdmin: user.isAdmin }, JWT_SECRET);
-    res.json({ token });
-  });
-
-// Route for user login using GitHub OAuth 2.0
-app.get('/auth/github', passport.authenticate('github', { scope: ['user:email'] }));
-
-app.get('/auth/github/callback',
-  passport.authenticate('github', { failureRedirect: '/login' }),
-  (req, res) => {
-    const user = req.user;
-    const token = jwt.sign({ id: user.id, isAdmin: user.isAdmin }, JWT_SECRET);
-    res.json({ token });
-  });
-
-// Route for user login using Twitter OAuth 1.0
-app.get('/auth/twitter', passport.authenticate('twitter'));
-
-app.get('/auth/twitter/callback',
-  passport.authenticate('twitter', { failureRedirect: '/login' }),
-  (req, res) => {
-    const user = req.user;
-    const token = jwt.sign({ id: user.id, isAdmin: user.isAdmin }, JWT_SECRET);
-    res.json({ token });
-  });
-  
-  app.get('/profile', authenticateUser, async (req, res) => {
+app.get('/profile', authenticateUser, async (req, res) => {
     try {
-      const userId = req.user.id;
-      const userProfile = await database('users').where({ id: userId }).first();
-      if (!userProfile) {
-        return res.status(404).json({ error: 'User profile not found' });
-      }
-      res.json(userProfile);
+        const userProfile = await database('users').where({ id: req.user.id }).first();
+        if (!userProfile) {
+            return res.status(404).json({ error: 'User profile not found' });
+        }
+        res.json(userProfile);
     } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch user profile' });
+        res.status(500).json({ error: 'Failed to fetch user profile' });
     }
-  });
-  
-  app.put('/profile', authenticateUser, async (req, res) => {
+});
+
+app.put('/profile', authenticateUser, upload.single('photo'), async (req, res) => {
     try {
-      const userId = req.user.id;
-      const { name, phoneNumber, email, bio, photoUrl, password, isPublic } = req.body;
-      // Update user profile based on provided data
-      await database('users').where({ id: userId }).update({ name, phoneNumber, email, bio, photoUrl, password, isPublic });
-      res.json({ message: 'User profile updated successfully' });
+        const { name, bio, phoneNumber, email, password, isPublic } = req.body;
+        const updatedFields = { name, bio, phoneNumber, email, isPublic };
+
+        if (password) {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            updatedFields.password = hashedPassword;
+        }
+
+        if (req.file) {
+            updatedFields.photo = req.file.path;
+        } else if (req.body.photoUrl) {
+            updatedFields.photo = req.body.photoUrl;
+        }
+
+        await database('users').where({ id: req.user.id }).update(updatedFields);
+        res.json({ message: 'Profile updated successfully' });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to update user profile' });
+        res.status(500).json({ error: 'Failed to update profile' });
     }
-  });
-  
-  app.get('/public_profiles', async (req, res) => {
+});
+
+app.get('/users', authenticateUser, async (req, res) => {
     try {
-      const publicProfiles = await database('users').where({ isPublic: true }).select('id', 'name', 'bio', 'photoUrl');
-      res.json(publicProfiles);
+        let users;
+        if (req.user.isAdmin) {
+            users = await database('users').select();
+        } else {
+            users = await database('users').where({ isPublic: true }).select();
+        }
+        res.json(users);
     } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch public profiles' });
+        res.status(500).json({ error: 'Failed to fetch users' });
     }
-  });
-  
-  // Admin-only route to get all user profiles (both public and private)
-  app.get('/admin/all_profiles', authenticateUser, async (req, res) => {
-    try {
-      if (!req.user.isAdmin) {
-        return res.status(403).json({ error: 'Unauthorized' });
-      }
-      const allProfiles = await database('users').select('id', 'name', 'bio', 'photoUrl', 'isPublic');
-      res.json(allProfiles);
-    } catch (error) {
-      res.status(500).json({ error: 'Failed to fetch user profiles' });
-    }
-  });
+});
+
+
 
 // Start the server
 const PORT = process.env.PORT || 3000;
